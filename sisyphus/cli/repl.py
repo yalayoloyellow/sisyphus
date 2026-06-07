@@ -25,7 +25,7 @@ from ..core.logic import fmt_entry, get_numbered_finances
 from .completer import get_completer
 from .commands import handle_command
 
-HELP_TEXT = """Sisyphus 1.0.0 — минималистичный терминальный органайзер.
+HELP_TEXT = """Sisyphus 1.0.2 — минималистичный терминальный органайзер.
 
 Основной ввод:
 • обычный текст          → заметка
@@ -123,7 +123,7 @@ def _run_cli_interactive():
             d = create_project("main")
             app.load(d)
 
-    print("Sisyphus 1.0.0")
+    print("Sisyphus 1.0.2")
     print("Copyright (c) 2026 Шамаев Илья Сергеевич (Yala, @yalayoloyellow). Personal use only.")
     print(app.status())
     visible, number_map = app.get_numbered_view()
