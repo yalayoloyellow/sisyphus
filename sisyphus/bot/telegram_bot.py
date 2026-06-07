@@ -60,31 +60,40 @@ async def _save_group_chat_on_message(update: Update, context: ContextTypes.DEFA
     _save_chat_id_for_user(update.effective_user.username, update.effective_chat.id)
 
 
-def _send_message(token: str, chat_id: int, text: str) -> bool:
+def send_message_safe(token: str, chat_id: int, text: str) -> bool:
+    """Надёжная отправка с 3 попытками при TimedOut/NetworkError (4 сек между попытками).
+    Другие ошибки (BadRequest, Forbidden и т.д.) — сразу неудача, без повторов.
+    """
     if not TELEGRAM_AVAILABLE:
         return False
-    for attempt in range(2):
+    for attempt in range(3):
         try:
             bot = Bot(token)
             coro = bot.send_message(chat_id=chat_id, text=text)
             try:
                 asyncio.run(coro)
             except RuntimeError:
-                # Уже внутри loop (python -m sisyphus --bot). Fire-and-forget.
+                # Вызвано изнутри запущенного event loop (внутри процесса бота).
+                # Fire-and-forget. Для массовых рассылок этот путь редкий.
                 asyncio.get_event_loop().create_task(coro)
                 return True
             return True
-        except (TimedOut, NetworkError) as e:
-            if attempt == 0:
-                print(f"[BOT] send to {chat_id} timed out, retrying in 0.5s...")
-                time.sleep(0.5)
+        except (TimedOut, NetworkError):
+            if attempt < 2:
+                time.sleep(4)
                 continue
-            print(f"[BOT] send failed to {chat_id} after retry: {e}")
+            print(f"[BOT] send failed to {chat_id} after 3 attempts")
             return False
         except Exception as e:
+            # BadRequest, Forbidden, InvalidToken и другие — не повторяем
             print(f"[BOT] send failed to {chat_id}: {e}")
             return False
     return False
+
+
+def _send_message(token: str, chat_id: int, text: str) -> bool:
+    # Оставлено для совместимости (используется в _process_pending и т.д.)
+    return send_message_safe(token, chat_id, text)
 
 def _process_pending(token: str, settings: dict) -> None:
     pending = settings.get("pending_notifications", [])
@@ -142,8 +151,8 @@ def _start_scheduler(token: str):
                         for chat_id in chats:
                             text = _format_my_message(username)
                             text = f"@{username} {text}"
-                            success = _send_message(token, chat_id, text)
-                            time.sleep(0.4)
+                            success = send_message_safe(token, chat_id, text)
+                            time.sleep(4)
                             if success:
                                 print(f"[BOT] scheduled sent to {username}")
                             else:
@@ -233,8 +242,8 @@ def force_notify():
         for chat_id in chats:
             text = _format_my_message(username)
             text = f"@{username} {text}"
-            success = _send_message(token, chat_id, text)
-            time.sleep(0.4)
+            success = send_message_safe(token, chat_id, text)
+            time.sleep(4)
             if success:
                 sent += 1
                 print(f"[BOT] forcenotify sent to {username}")
