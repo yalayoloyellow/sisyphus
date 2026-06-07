@@ -1,4 +1,4 @@
-# Sisyphus 1.0.0
+# Sisyphus 1.0.1
 
 Минималистичный терминальный органайзер для разгрузки мозга.
 
@@ -30,7 +30,7 @@ python launch.py
 - `/notify-` — отключить рассылку
 - `/forcenotify` — принудительная рассылка прямо сейчас
 
-Бот отвечает только на `/my` (твои задачи по всем проектам).
+Бот отвечает только на `/my` (твои задачи по всем проектам, в т.ч. из групп).
 
 ## Основные команды
 
@@ -73,9 +73,9 @@ requirements.txt
 
 Pure Python (pathlib). Data in ~/Documents/Sisyphus (or fallback). Same on macOS/Linux/Windows.
 
-## Philosophy
+## Философия
 
-Всё по nakedlunch: ничего лишнего, просто, без заеба, один источник правды (нумерация и данные в core). No extra text on startup. Bare header.
+Минималистичный дизайн, ничего лишнего, один источник правды (нумерация и данные в core). No extra text on startup. Bare header.
 
 ## License
 
