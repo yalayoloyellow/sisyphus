@@ -1,0 +1,30 @@
+# === User data protection (never commit) ===
+# Real user data: ~/Documents/Sisyphus (multi-platform)
+# Dev fallback data/ is ignored
+data/
+
+# === Python ===
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+
+# === OS artifacts ===
+.DS_Store
+Thumbs.db
+
+# === Exports / build artifacts (never commit) ===
+*.xlsx
+*.csv
+*.log
+logs/
+
+# === IDE / editors ===
+.idea/
+.vscode/
+*.swp
+*.swo
