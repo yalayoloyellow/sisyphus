@@ -63,18 +63,28 @@ async def _save_group_chat_on_message(update: Update, context: ContextTypes.DEFA
 def _send_message(token: str, chat_id: int, text: str) -> bool:
     if not TELEGRAM_AVAILABLE:
         return False
-    try:
-        bot = Bot(token)
-        coro = bot.send_message(chat_id=chat_id, text=text)
+    for attempt in range(2):
         try:
-            asyncio.run(coro)
-        except RuntimeError:
-            # Уже внутри loop (python -m sisyphus --bot). Fire-and-forget.
-            asyncio.get_event_loop().create_task(coro)
-        return True
-    except Exception as e:
-        print(f"[BOT] send failed to {chat_id}: {e}")
-        return False
+            bot = Bot(token)
+            coro = bot.send_message(chat_id=chat_id, text=text)
+            try:
+                asyncio.run(coro)
+            except RuntimeError:
+                # Уже внутри loop (python -m sisyphus --bot). Fire-and-forget.
+                asyncio.get_event_loop().create_task(coro)
+                return True
+            return True
+        except (TimedOut, NetworkError) as e:
+            if attempt == 0:
+                print(f"[BOT] send to {chat_id} timed out, retrying in 0.5s...")
+                time.sleep(0.5)
+                continue
+            print(f"[BOT] send failed to {chat_id} after retry: {e}")
+            return False
+        except Exception as e:
+            print(f"[BOT] send failed to {chat_id}: {e}")
+            return False
+    return False
 
 def _process_pending(token: str, settings: dict) -> None:
     pending = settings.get("pending_notifications", [])
@@ -133,6 +143,7 @@ def _start_scheduler(token: str):
                             text = _format_my_message(username)
                             text = f"@{username} {text}"
                             success = _send_message(token, chat_id, text)
+                            time.sleep(0.4)
                             if success:
                                 print(f"[BOT] scheduled sent to {username}")
                             else:
@@ -223,6 +234,7 @@ def force_notify():
             text = _format_my_message(username)
             text = f"@{username} {text}"
             success = _send_message(token, chat_id, text)
+            time.sleep(0.4)
             if success:
                 sent += 1
                 print(f"[BOT] forcenotify sent to {username}")
