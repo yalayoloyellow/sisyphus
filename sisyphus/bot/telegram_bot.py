@@ -210,16 +210,24 @@ async def run_bot(quiet: bool = False, stop_signals=None):
     if not quiet:
         print("Telegram бот запущен. Ctrl+C для остановки.")
 
-    # Запуск на существующем loop (чтобы работало из любого потока через asyncio.run / run_until_complete).
-    # stop_signals обрабатывается только в высокоуровневом run_polling; здесь сигналы не ставим (как и раньше при None).
-    await application.initialize()
-    await application.start()
-    await application.updater.start_polling()
-    try:
-        await asyncio.Event().wait()
-    finally:
-        await application.stop()
-        await application.shutdown()
+    for attempt in range(1, 4):
+        try:
+            await application.initialize()
+            await application.start()
+            await application.updater.start_polling()
+
+            try:
+                await asyncio.Event().wait()
+            finally:
+                await application.stop()
+                await application.shutdown()
+            break
+        except (TimedOut, NetworkError) as e:
+            if attempt == 3:
+                print(f"[BOT] Не удалось подключиться к Telegram после 3 попыток: {e}")
+                return
+            print(f"[BOT] Ошибка подключения (попытка {attempt}/3), жду 3 секунды...")
+            await asyncio.sleep(3)
 
 
 def force_notify():

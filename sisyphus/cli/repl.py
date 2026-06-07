@@ -8,7 +8,6 @@ REPL, основной цикл, help, bare input + dispatch команд.
 
 from __future__ import annotations
 import sys
-from typing import Optional
 
 # Ленивый импорт prompt_toolkit
 try:
@@ -25,7 +24,7 @@ from ..core.logic import fmt_entry, get_numbered_finances
 from .completer import get_completer
 from .commands import handle_command
 
-HELP_TEXT = """Sisyphus 1.0.2 — минималистичный терминальный органайзер.
+HELP_TEXT = """Sisyphus 1.0.3 — минималистичный терминальный органайзер.
 
 Основной ввод:
 • обычный текст          → заметка
@@ -53,7 +52,12 @@ HELP_TEXT = """Sisyphus 1.0.2 — минималистичный термина�
 /h              — эта справка
 /q              — выход
 
-Бот и рассылка:
+Бот (отдельный терминал):
+    python -m sisyphus --bot
+
+  (оставь эту команду работать в отдельном окне терминала)
+
+Бот и рассылка (настройка в основном окне):
 /bot token <токен>
 /notify daily|weekdays|weekly <время> / /notify-
 /forcenotify    — принудительная рассылка сейчас (в личку и группы)
@@ -76,29 +80,14 @@ def main(argv: list[str] | None = None):
 
     if "--bot" in argv:
         from ..bot.telegram_bot import run_bot
-        run_bot()
+        import asyncio
+        asyncio.run(run_bot())
         return
 
     if "--test" in argv:
         from ..tests import run_all_tests
         run_all_tests()
         return
-
-    # Автозапуск бота в фоне при наличии bot_token (daemon thread). Планировщик подхватит /notify позже.
-    from ..core.data import load_settings
-    settings = load_settings()
-    if settings.get("bot_token"):
-        from ..bot.telegram_bot import run_bot
-        import asyncio
-        import threading
-
-        def _run_bot_in_thread():
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            run_bot(quiet=True, stop_signals=None)
-
-        threading.Thread(target=_run_bot_in_thread, daemon=True).start()
-        print("Бот запущен в фоне.")
 
     _run_cli_interactive()
 
@@ -123,7 +112,7 @@ def _run_cli_interactive():
             d = create_project("main")
             app.load(d)
 
-    print("Sisyphus 1.0.2")
+    print("Sisyphus 1.0.3")
     print("Copyright (c) 2026 Шамаев Илья Сергеевич (Yala, @yalayoloyellow). Personal use only.")
     print(app.status())
     visible, number_map = app.get_numbered_view()

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Sisyphus 1.0.2
+# Sisyphus 1.0.3
 # Copyright (c) 2026 Шамаев Илья Сергеевич (Yala, @yalayoloyellow). Personal use only.
 
 """
