@@ -4,6 +4,7 @@ bot/telegram_bot.py
 
 from __future__ import annotations
 import asyncio
+import logging
 import threading
 import time
 from datetime import datetime
@@ -11,7 +12,10 @@ from datetime import datetime
 TELEGRAM_AVAILABLE = False
 try:
     from telegram import Update, Bot
-    from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
+    from telegram.ext import (
+        Application, CommandHandler, MessageHandler, ContextTypes, filters
+    )
+    from telegram.error import TimedOut, NetworkError
     TELEGRAM_AVAILABLE = True
 except ImportError:
     pass
@@ -167,6 +171,16 @@ def run_bot(quiet: bool = False, stop_signals=None):
     application = Application.builder().token(token).build()
     application.add_handler(CommandHandler("my", my_command))
     application.add_handler(MessageHandler(filters.ChatType.GROUPS, _save_group_chat_on_message))
+
+    async def _error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+        # Логируем ошибку минимально, но не падаем и не спамим traceback в консоль
+        error = context.error
+        if isinstance(error, (TimedOut, NetworkError)):
+            print(f"[BOT] network error (handled): {type(error).__name__}")
+            return
+        print(f"[BOT] error: {error}")
+
+    application.add_error_handler(_error_handler)
 
     if not quiet:
         print("Telegram бот запущен. Ctrl+C для остановки.")
