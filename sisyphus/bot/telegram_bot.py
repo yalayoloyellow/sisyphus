@@ -29,7 +29,7 @@ def _format_my_message(username: str) -> str:
         return "У вас нет открытых задач ни в одном проекте."
     lines = []
     for proj_name, tasks in tasks_by_project.items():
-        lines.append(f"**{proj_name}**")
+        lines.append(proj_name)
         for t in tasks:
             lines.append(f"• {t.get('text')}")
     return "\n".join(lines)
@@ -65,7 +65,12 @@ def _send_message(token: str, chat_id: int, text: str) -> bool:
         return False
     try:
         bot = Bot(token)
-        asyncio.run(bot.send_message(chat_id=chat_id, text=text, parse_mode="Markdown"))
+        coro = bot.send_message(chat_id=chat_id, text=text)
+        try:
+            asyncio.run(coro)
+        except RuntimeError:
+            # Уже внутри loop (python -m sisyphus --bot). Fire-and-forget.
+            asyncio.get_event_loop().create_task(coro)
         return True
     except Exception as e:
         print(f"[BOT] send failed to {chat_id}: {e}")
@@ -140,7 +145,7 @@ def _start_scheduler(token: str):
                 time.sleep(60)
     threading.Thread(target=worker, daemon=True).start()
 
-def run_bot(quiet: bool = False, stop_signals=None):
+async def run_bot(quiet: bool = False, stop_signals=None):
     settings = load_settings()
     token = settings.get("bot_token")
     if not token or not TELEGRAM_AVAILABLE:
@@ -166,7 +171,7 @@ def run_bot(quiet: bool = False, stop_signals=None):
         # В группах добавляем упоминание @username для стабильности и соответствия ТЗ
         if update.effective_chat.type in ("group", "supergroup"):
             text = f"@{username} {text}"
-        await update.message.reply_text(text, parse_mode="Markdown")
+        await update.message.reply_text(text)
 
     application = Application.builder().token(token).build()
     application.add_handler(CommandHandler("my", my_command))
@@ -184,7 +189,17 @@ def run_bot(quiet: bool = False, stop_signals=None):
 
     if not quiet:
         print("Telegram бот запущен. Ctrl+C для остановки.")
-    application.run_polling(stop_signals=stop_signals)
+
+    # Запуск на существующем loop (чтобы работало из любого потока через asyncio.run / run_until_complete).
+    # stop_signals обрабатывается только в высокоуровневом run_polling; здесь сигналы не ставим (как и раньше при None).
+    await application.initialize()
+    await application.start()
+    await application.updater.start_polling()
+    try:
+        await asyncio.Event().wait()
+    finally:
+        await application.stop()
+        await application.shutdown()
 
 
 def force_notify():
