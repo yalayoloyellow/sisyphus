@@ -17,6 +17,8 @@ python -m sisyphus
 python launch.py
 ```
 
+При первом запуске данные автоматически создадутся в ~/Documents/Sisyphus (кросс-платформенно).
+
 ## Настройка Telegram-бота и рассылки
 
 В CLI:
@@ -39,6 +41,7 @@ python launch.py
 - `/del N` — удалить
 - `/done N` — отметить выполненным
 - `/e N текст` — редактировать
+- `/rename <новое_имя>` — переименовать текущий проект
 - `/u` / `/r` — undo / redo
 - `/fin` — список финансов
 - `/export` — экспорт в .xlsx (3 листа)
@@ -56,10 +59,12 @@ python -m sisyphus --test
 
 ```
 sisyphus/
-├── core/      # данные, логика, нумерация
-├── cli/       # REPL, команды, autocomplete
-├── bot/       # Telegram-бот и планировщик
+├── core/           # данные, логика, нумерация
+├── cli/            # REPL, команды, autocomplete
+├── bot/            # Telegram-бот и планировщик
 ├── tests/
+├── __init__.py
+├── __main__.py
 launch.py
 requirements.txt
 ```
