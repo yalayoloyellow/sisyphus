@@ -37,6 +37,42 @@ def _has_open_tasks(username: str) -> bool:
     return bool(get_user_tasks_across_projects(username))
 
 
+def _split_text(text: str, max_len: int = 3500) -> list[str]:
+    """Умное, но очень простое разделение: пакуем по целым строкам (границы задач/проектов).
+
+    Не режем посередине задачи. Если одна строка чудовищно длинная (>3500) — режем жёстко (защита).
+    Используется только при отправке notify, чтобы не превышать лимит Telegram.
+    """
+    if not text or len(text) <= max_len:
+        return [text] if text else [""]
+    parts: list[str] = []
+    current_lines: list[str] = []
+    current_len = 0
+    for line in text.splitlines(keepends=False):
+        line_with_nl = line + "\n"
+        line_len = len(line_with_nl)
+        if current_lines and current_len + line_len > max_len:
+            part = "".join(current_lines).rstrip("\n")
+            parts.append(part)
+            current_lines = [line_with_nl]
+            current_len = line_len
+        else:
+            current_lines.append(line_with_nl)
+            current_len += line_len
+        # если даже текущая строка (задача) слишком большая — потом дорежем
+    if current_lines:
+        parts.append("".join(current_lines).rstrip("\n"))
+    # пост-обработка: жёстко режем любые части, что всё ещё > max (монстр-строки)
+    final: list[str] = []
+    for p in parts:
+        if len(p) <= max_len:
+            final.append(p)
+        else:
+            for i in range(0, len(p), max_len):
+                final.append(p[i : i + max_len])
+    return final or [""]
+
+
 def send_message_safe(token: str, chat_id: int, text: str) -> bool:
     """Надёжная отправка с 3 попытками при TimedOut/NetworkError (4 сек между попытками).
     Другие ошибки (BadRequest, Forbidden и т.д.) — сразу неудача, без повторов.
@@ -85,15 +121,21 @@ def force_notify():
         if isinstance(chats, int):
             chats = [chats]
         for chat_id in chats:
-            text = _format_my_message(username)
-            text = f"@{username} {text}"
-            success = send_message_safe(token, chat_id, text)
+            body = _format_my_message(username)
+            full = f"@{username} {body}"
+            parts = _split_text(full, 3500)
+            chat_ok = True
+            for idx, part in enumerate(parts):
+                ok = send_message_safe(token, chat_id, part)
+                if not ok:
+                    chat_ok = False
+                    pending = settings.setdefault("pending_notifications", [])
+                    pending.append({"chat_id": chat_id, "text": part, "time": datetime.now().isoformat()})
+                    save_settings(settings)
+                if idx < len(parts) - 1:
+                    time.sleep(2)
             time.sleep(4)
-            if success:
+            if chat_ok:
                 sent += 1
                 print(f"[BOT] notify sent to {username}")
-            else:
-                pending = settings.setdefault("pending_notifications", [])
-                pending.append({"chat_id": chat_id, "text": text, "time": datetime.now().isoformat()})
-                save_settings(settings)
     return f"Принудительная рассылка выполнена для {sent} получателей."

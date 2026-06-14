@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-# Sisyphus 1.0.4.2
+# Sisyphus 1.0.4.3
 # Copyright (c) 2026 Шамаев Илья Сергеевич (Yala, @yalayoloyellow). Personal use only.
 
 """
-Entry point for `python -m sisyphus` (Sisyphus 1.0.4.2)
+Entry point for `python -m sisyphus` (Sisyphus 1.0.4.3)
 
 Minimal launcher for the REPL.
 """

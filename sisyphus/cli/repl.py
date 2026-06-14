@@ -100,7 +100,7 @@ def _run_cli_interactive():
             d = create_project("main")
             app.load(d)
 
-    app_print("Sisyphus 1.0.4.2")
+    app_print("Sisyphus 1.0.4.3")
     app_print("Copyright (c) 2026 Шамаев Илья Сергеевич (Yala, @yalayoloyellow). Personal use only.")
     app_print(app.status())
     visible, number_map = app.get_numbered_view()
@@ -111,7 +111,7 @@ def _run_cli_interactive():
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     session = PromptSession(
         history=FileHistory(str(history_file)),
-        # completer removed (minimal clean release 1.0.4.2, no completer.py)
+        # completer removed (minimal clean release 1.0.4.3, no completer.py)
     )
 
     last_projects = None
