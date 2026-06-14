@@ -1,3 +1,4 @@
 prompt_toolkit
 openpyxl
 python-telegram-bot
+rich>=13.0.0

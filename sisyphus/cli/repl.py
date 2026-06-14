@@ -8,6 +8,7 @@ REPL, основной цикл, help, bare input + dispatch команд.
 
 from __future__ import annotations
 import sys
+import shutil
 
 # Ленивый импорт prompt_toolkit
 try:
@@ -22,6 +23,35 @@ from ..core.data import DATA_DIR, list_projects, create_project, delete_project,
 from ..core.logic import fmt_entry
 
 from .commands import handle_command
+
+try:
+    from rich.console import Console
+    from rich.padding import Padding
+    _console = Console()
+    _HAS_RICH = True
+except ImportError:
+    _HAS_RICH = False
+    _console = None
+
+def app_print(text=""):
+    """Simple centered output in middle ~2/3 of screen, left-aligned text.
+    Uses rich for better rendering if available. No colors at all (plain).
+    """
+    try:
+        width = shutil.get_terminal_size().columns
+    except Exception:
+        width = 80
+    content_w = max(30, min(100, int(width * 2 / 3)))
+    left = (width - content_w) // 2
+    if _HAS_RICH:
+        indented = Padding(str(text) if not isinstance(text, str) else text, (0, 0, 0, left))
+        _console.print(indented, width=width)
+    else:
+        if isinstance(text, str):
+            for line in (text.splitlines() or [""]):
+                print(" " * left + line)
+        else:
+            print(" " * left + str(text))
 
 HELP_TEXT = """/h                  — эта справка
 /m [имя]            — список проектов / открыть проект
@@ -40,7 +70,7 @@ HELP_TEXT = """/h                  — эта справка
 """
 
 def print_help():
-    print(HELP_TEXT)
+    app_print(HELP_TEXT)
 
 def main(argv: list[str] | None = None):
     """Главная точка входа для CLI."""
@@ -70,9 +100,9 @@ def _run_cli_interactive():
             d = create_project("main")
             app.load(d)
 
-    print("Sisyphus 1.0.4")
-    print("Copyright (c) 2026 Шамаев Илья Сергеевич (Yala, @yalayoloyellow). Personal use only.")
-    print(app.status())
+    app_print("Sisyphus 1.0.4.2")
+    app_print("Copyright (c) 2026 Шамаев Илья Сергеевич (Yala, @yalayoloyellow). Personal use only.")
+    app_print(app.status())
     visible, number_map = app.get_numbered_view()
     _print_numbered(visible)  # простая печать секциями
     last_finance_map = None
@@ -81,21 +111,32 @@ def _run_cli_interactive():
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     session = PromptSession(
         history=FileHistory(str(history_file)),
-        # completer removed (minimal clean release 1.0.4, no completer.py)
+        # completer removed (minimal clean release 1.0.4.2, no completer.py)
     )
 
     last_projects = None
 
     while True:
         try:
-            raw = session.prompt("> ").strip()
+            # pad prompt to middle band; prefer rich input if available (for beautiful wrapper)
+            try:
+                w = shutil.get_terminal_size().columns
+            except:
+                w = 80
+            cw = max(30, min(100, int(w * 2 / 3)))
+            l = (w - cw) // 2
+            prompt_str = " " * l + "> "
+            if _HAS_RICH:
+                raw = _console.input(prompt_str).strip()
+            else:
+                raw = session.prompt(prompt_str).strip()
         except (EOFError, KeyboardInterrupt):
-            print("\nВыход.")
+            app_print("\nВыход.")
             break
 
         if not raw:
-            print()
-            print(app.status())
+            app_print()
+            app_print(app.status())
             visible, number_map = app.get_numbered_view()
             _print_numbered(visible)
             last_projects = None
@@ -109,31 +150,31 @@ def _run_cli_interactive():
                     if 1 <= n <= len(last_projects):
                         app.load(last_projects[n-1]["dir"])
                         last_projects = None
-                        print()
-                        print(app.status())
+                        app_print()
+                        app_print(app.status())
                         visible, number_map = app.get_numbered_view()
                         _print_numbered(visible)
                         continue
                     last_projects = None
-                    print()
-                    print("Проект не найден.")
+                    app_print()
+                    app_print("Проект не найден.")
                     continue
                 last_projects = None
             e = app.add_bare(raw)
             if e:
-                print()
-                print(f"Добавлено: {fmt_entry(e)}")
-                print(app.status())
+                app_print()
+                app_print(f"Добавлено: {fmt_entry(e)}")
+                app_print(app.status())
                 visible, number_map = app.get_numbered_view()
                 _print_numbered(visible)
             else:
-                print()
-                print("Не удалось распознать запись (только @username текст).")
+                app_print()
+                app_print("Не удалось распознать запись (только @username текст).")
             continue
 
         cmdline = raw[1:].strip()
         if not cmdline:
-            print()
+            app_print()
             print_help()
             last_projects = None
             continue
@@ -143,7 +184,7 @@ def _run_cli_interactive():
         arg = parts[1].strip() if len(parts) > 1 else ""
 
         if cmd in ("h", "help", "?"):
-            print()
+            app_print()
             print_help()
             last_projects = None
             continue
@@ -155,14 +196,14 @@ def _run_cli_interactive():
         if result == "quit":
             break
         if result:
-            print()
-            print(result)
+            app_print()
+            app_print(result)
             if cmd == "m" and not arg:
                 last_projects = list_projects()
 
         if cmd in ("del", "done", "u", "r", "e") or (cmd in ("p", "p-", "m", "rename") and arg):
-            print()
-            print(app.status())
+            app_print()
+            app_print(app.status())
             visible, number_map = app.get_numbered_view()
             _print_numbered(visible)
 
@@ -172,10 +213,10 @@ def _run_cli_interactive():
 
 def _print_numbered(visible):
     if not visible:
-        print("Нет активных записей.")
+        app_print("Нет активных записей.")
         return
     for i, e in enumerate(visible, 1):
-        print(f"{i}. {fmt_entry(e)}")
+        app_print(f"{i}. {fmt_entry(e)}")
 
 
 if __name__ == "__main__":

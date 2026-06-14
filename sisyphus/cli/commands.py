@@ -132,7 +132,13 @@ def handle_command(
                 ids.append(eid)
         deleted = app.delete_by_ids(ids)
         for d in deleted:
-            print(f"Удалено: {fmt_entry(d)}")
+            try:
+                w = __import__('shutil').get_terminal_size().columns
+            except:
+                w = 80
+            cw = max(30, min(100, int(w * 2 / 3)))
+            l = (w - cw) // 2
+            print(" " * l + f"Удалено: {fmt_entry(d)}")
         return None
 
     elif cmd == "done":
@@ -146,7 +152,13 @@ def handle_command(
                 ids.append(eid)
         changed = app.mark_done_by_ids(ids)
         for c in changed:
-            print(f"Отмечено выполненным: {fmt_entry(c)}")
+            try:
+                w = __import__('shutil').get_terminal_size().columns
+            except:
+                w = 80
+            cw = max(30, min(100, int(w * 2 / 3)))
+            l = (w - cw) // 2
+            print(" " * l + f"Отмечено выполненным: {fmt_entry(c)}")
         return None
 
     elif cmd == "e":
