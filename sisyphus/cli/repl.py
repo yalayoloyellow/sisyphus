@@ -19,75 +19,33 @@ except ImportError:
 
 from ..core.app import CoreApp
 from ..core.data import DATA_DIR, list_projects, create_project, delete_project, load_last
-from ..core.logic import fmt_entry, get_numbered_finances
+from ..core.logic import fmt_entry
 
-from .completer import get_completer
 from .commands import handle_command
 
-HELP_TEXT = """Sisyphus 1.0.3 — минималистичный терминальный органайзер.
-
-Основной ввод:
-• обычный текст          → заметка
-• @username текст        → задача
-• +сумма текст / -сумма текст → финансы (текст-обоснование обязательно)
-
-В главном списке показываются только заметки и задачи. Финансы — только сумма в шапке (полный список: /fin).
-
-Нумерация глобальная (1, 2, 3…). Номера работают только после последнего вызова списка.
-
-Команды:
-/m [имя]        — список проектов / открыть проект
-/p имя          — создать проект
-/p- имя         — удалить проект (с подтверждением)
-/rename имя     — переименовать текущий проект
-/del N [N2..]   — удалить запись(и)
-/done N [N2..]  — отметить выполненным (только заметки и задачи)
-/done           — архив выполненных
-/e N текст      — редактировать запись
-/u              — undo
-/r              — redo
-/fin            — полный список финансов
-/export         — экспорт в .xlsx (3 листа)
-/dir            — открыть папку с данными
-/h              — эта справка
-/q              — выход
-
-Бот (отдельный терминал):
-    python -m sisyphus --bot
-
-  (оставь эту команду работать в отдельном окне терминала)
-
-Бот и рассылка (настройка в основном окне):
-/bot token <токен>
-/notify daily|weekdays|weekly <время> / /notify-
-/forcenotify    — принудительная рассылка сейчас (в личку и группы)
-
-Бот отвечает только на /my (твои задачи по всем проектам, в т.ч. из групп).
-
-Нюансы:
-• /del полностью удаляет запись (у финансов пересчитывается сумма).
-• /done работает только с заметками и задачами.
-• При /del и /done с несколькими номерами требуется подтверждение [y/N].
+HELP_TEXT = """/h                  — эта справка
+/m [имя]            — список проектов / открыть проект
+/p имя              — создать проект
+/p- имя             — удалить проект
+/rename имя         — переименовать текущий проект
+/del N [N2..]       — удалить запись(и)
+/done N [N2..]      — отметить выполненным
+/done               — архив выполненных
+/e N текст          — редактировать запись
+/u                  — undo
+/r                  — redo
+/notify             — принудительная рассылка сейчас
+/tasks @username    — все открытые задачи человека по всем проектам
+/q                  — выход
 """
 
 def print_help():
     print(HELP_TEXT)
 
 def main(argv: list[str] | None = None):
-    """Главная точка входа для CLI и --bot."""
+    """Главная точка входа для CLI."""
     if argv is None:
         argv = sys.argv[1:]
-
-    if "--bot" in argv:
-        from ..bot.telegram_bot import run_bot
-        import asyncio
-        asyncio.run(run_bot())
-        return
-
-    if "--test" in argv:
-        from ..tests import run_all_tests
-        run_all_tests()
-        return
 
     _run_cli_interactive()
 
@@ -112,7 +70,7 @@ def _run_cli_interactive():
             d = create_project("main")
             app.load(d)
 
-    print("Sisyphus 1.0.3")
+    print("Sisyphus 1.0.4")
     print("Copyright (c) 2026 Шамаев Илья Сергеевич (Yala, @yalayoloyellow). Personal use only.")
     print(app.status())
     visible, number_map = app.get_numbered_view()
@@ -121,14 +79,12 @@ def _run_cli_interactive():
 
     history_file = DATA_DIR / "history.txt"
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    completer = get_completer(app)
     session = PromptSession(
         history=FileHistory(str(history_file)),
-        completer=completer,
+        # completer removed (minimal clean release 1.0.4, no completer.py)
     )
 
     last_projects = None
-    last_finance_map = None
 
     while True:
         try:
@@ -138,11 +94,11 @@ def _run_cli_interactive():
             break
 
         if not raw:
+            print()
             print(app.status())
             visible, number_map = app.get_numbered_view()
             _print_numbered(visible)
             last_projects = None
-            last_finance_map = None
             continue
 
         if not raw.startswith("/"):
@@ -153,33 +109,33 @@ def _run_cli_interactive():
                     if 1 <= n <= len(last_projects):
                         app.load(last_projects[n-1]["dir"])
                         last_projects = None
-                        last_finance_map = None
+                        print()
                         print(app.status())
                         visible, number_map = app.get_numbered_view()
                         _print_numbered(visible)
                         continue
                     last_projects = None
-                    last_finance_map = None
+                    print()
                     print("Проект не найден.")
                     continue
                 last_projects = None
-                last_finance_map = None
             e = app.add_bare(raw)
             if e:
+                print()
                 print(f"Добавлено: {fmt_entry(e)}")
                 print(app.status())
                 visible, number_map = app.get_numbered_view()
                 _print_numbered(visible)
-                last_finance_map = None
             else:
-                print("Не удалось распознать запись (для финансов нужен текст после суммы).")
+                print()
+                print("Не удалось распознать запись (только @username текст).")
             continue
 
         cmdline = raw[1:].strip()
         if not cmdline:
+            print()
             print_help()
             last_projects = None
-            last_finance_map = None
             continue
 
         parts = cmdline.split(maxsplit=1)
@@ -187,38 +143,31 @@ def _run_cli_interactive():
         arg = parts[1].strip() if len(parts) > 1 else ""
 
         if cmd in ("h", "help", "?"):
+            print()
             print_help()
             last_projects = None
-            last_finance_map = None
             continue
 
-        if cmd == "del" and last_finance_map:
-            number_map = last_finance_map
-            last_finance_map = None
-        elif cmd in ("del", "done", "e"):
+        if cmd in ("del", "done", "e"):
             visible, number_map = app.get_numbered_view()
-            last_finance_map = None
 
         result = handle_command(app, cmd, arg, number_map)
         if result == "quit":
             break
         if result:
+            print()
             print(result)
             if cmd == "m" and not arg:
                 last_projects = list_projects()
-            if cmd == "fin":
-                _, last_finance_map = get_numbered_finances(app.state)
 
         if cmd in ("del", "done", "u", "r", "e") or (cmd in ("p", "p-", "m", "rename") and arg):
+            print()
             print(app.status())
             visible, number_map = app.get_numbered_view()
             _print_numbered(visible)
-            last_finance_map = None
 
         if not (cmd == "m" and not arg):
             last_projects = None
-        if cmd != "fin":
-            last_finance_map = None
 
 
 def _print_numbered(visible):
@@ -226,8 +175,6 @@ def _print_numbered(visible):
         print("Нет активных записей.")
         return
     for i, e in enumerate(visible, 1):
-        if i == 1 or visible[i-2].get("type") != e.get("type"):
-            print("## Заметки" if e.get("type") == "note" else "## Задачи")
         print(f"{i}. {fmt_entry(e)}")
 
 

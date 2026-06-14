@@ -71,7 +71,6 @@ def load_settings() -> Dict[str, Any]:
             s = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
             s.setdefault("lang", "ru")
             s.setdefault("bot_token", "")
-            s.setdefault("notify", None)
             s.setdefault("chat_ids", {})
             return s
         except Exception:
@@ -79,7 +78,6 @@ def load_settings() -> Dict[str, Any]:
     s = {
         "lang": "ru",
         "bot_token": "",
-        "notify": None,
         "chat_ids": {},
     }
     save_settings(s)

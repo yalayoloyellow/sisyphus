@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-# Sisyphus 1.0.3
+# Sisyphus 1.0.4
 # Copyright (c) 2026 Шамаев Илья Сергеевич (Yala, @yalayoloyellow). Personal use only.
 
 """
-Entry point for `python -m sisyphus` (Sisyphus 1.0.3)
+Entry point for `python -m sisyphus` (Sisyphus 1.0.4)
 
-This replaces the old monolithic executable behavior.
+Minimal launcher for the REPL.
 """
 
 from .cli.repl import main

@@ -13,7 +13,7 @@ import sys
 
 from ..core.app import CoreApp
 from ..core.data import list_projects, create_project, delete_project, DATA_DIR, load_last, rename_project
-from ..core.logic import fmt_entry, get_all_entries, export_to_xlsx, get_numbered_finances
+from ..core.logic import fmt_entry
 from pathlib import Path
 
 
@@ -136,20 +136,9 @@ def handle_command(
         return None
 
     elif cmd == "done":
-        if not arg:
-            all_ents = get_all_entries(app.state)
-            done_ents = [e for e in all_ents if e.get("done") and e.get("type") in ("note", "task")]
-            if not done_ents:
-                return "Архив пуст."
-            lines = ["## Архив (выполненные)"]
-            for e in done_ents:
-                lines.append(f"  {fmt_entry(e)}")
-            return "\n".join(lines)
-
         nums = [int(tok) for tok in arg.split() if tok.isdigit()]
         if not nums:
             return "Укажите номера: /done 2 5"
-        # Чистое решение: собрать id по number_map (до команды) заранее, потом отметить по id.
         ids = []
         for n in nums:
             eid = number_map.get(n)
@@ -182,24 +171,6 @@ def handle_command(
             return "Возвращено."
         return "Нечего возвращать."
 
-    elif cmd == "fin":
-        fins, _ = get_numbered_finances(app.state)
-        if not fins:
-            return "Финансов нет."
-        lines = ["## Финансы (полный список)"]
-        for i, e in enumerate(fins, 1):
-            lines.append(f"  {i}. {fmt_entry(e)}  ({e.get('ts', '')[:16]})")
-        return "\n".join(lines)
-
-    elif cmd == "export":
-        if not app.dir:
-            return "Нет открытого проекта."
-        exp_dir = DATA_DIR / "exports"
-        exp_dir.mkdir(parents=True, exist_ok=True)
-        out_path = exp_dir / f"sisyphus-export-{app.dir}.xlsx"
-        export_to_xlsx(app.state, out_path)
-        return f"Экспорт выполнен: {out_path} (3 листа: Заметки, Задачи, Финансы)"
-
     elif cmd in ("dir", "open", "d"):
         try:
             if sys.platform == "darwin":
@@ -218,7 +189,7 @@ def handle_command(
     elif cmd == "q":
         return "quit"
 
-    # bot / notify — конфигурация (используем data напрямую, чтобы core оставался чистым)
+    # bot token — конфигурация токена (используем data напрямую)
     elif cmd == "bot":
         from ..core.data import load_settings, save_settings
         sub = arg.lower().split()
@@ -235,34 +206,24 @@ def handle_command(
         return "Неизвестная подкоманда. Используй /bot token <токен>"
 
     elif cmd == "notify":
-        from ..core.data import load_settings, save_settings
-        settings = load_settings()
-        if arg.lower().startswith("daily"):
-            t = arg.split()[-1] if " " in arg else "09:00"
-            settings["notify"] = {"type": "daily", "time": t}
-            save_settings(settings)
-            return f"Установлена ежедневная рассылка в {t}."
-        elif arg.lower().startswith("weekdays"):
-            t = arg.split()[-1] if " " in arg else "09:00"
-            settings["notify"] = {"type": "weekdays", "time": t}
-            save_settings(settings)
-            return f"Установлена рассылка по будням в {t}."
-        elif arg.lower().startswith("weekly"):
-            parts = arg.split()
-            day = parts[1] if len(parts) > 1 else "mon"
-            t = parts[-1] if len(parts) > 2 else "09:00"
-            settings["notify"] = {"type": "weekly", "day": day, "time": t}
-            save_settings(settings)
-            return f"Установлена еженедельная рассылка ({day}) в {t}."
-        elif arg.strip() in ("-", "off", "stop"):
-            settings["notify"] = None
-            save_settings(settings)
-            return "Автоматическая рассылка отключена."
-        return "Использование: /notify daily 09:00 | /notify-"
-
-    elif cmd == "forcenotify":
         from ..bot.telegram_bot import force_notify
         return force_notify()
+
+    elif cmd == "tasks":
+        if not arg:
+            return "Использование: tasks @username"
+        # normalize: accept "user" or "@user"
+        uname = arg.strip()
+        if not uname.startswith("@"):
+            uname = "@" + uname
+        from ..core.logic import get_user_tasks_across_projects
+        from ..bot.telegram_bot import _format_my_message
+        tasks_by_proj = get_user_tasks_across_projects(uname)
+        if not tasks_by_proj:
+            return f"Нет открытых задач для {uname}"
+        # reuse the existing formatter (same as old /my)
+        text = _format_my_message(uname)
+        return text
 
     else:
         return "Неизвестная команда. /h для справки."

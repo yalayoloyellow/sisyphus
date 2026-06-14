@@ -28,3 +28,12 @@ logs/
 .vscode/
 *.swp
 *.swo
+
+# === Sensitive / user config (never commit tokens, chat ids, settings) ===
+*.env
+.env*
+.env.local
+settings.json
+chat_ids.json
+*.token
+secrets/

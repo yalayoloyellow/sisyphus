@@ -15,7 +15,6 @@ from .logic import (
     build_numbered_view,
     get_entry_by_number,
     parse_bare_input,
-    compute_stats,
     fmt_entry,
     get_all_entries,
 )
@@ -42,8 +41,8 @@ class CoreApp:
         if not self.dir:
             return "нет проекта"
         name = self.state.get("_meta", {}).get("display_name") or self.dir
-        t, f, n = compute_stats(self.state)
-        return f"Проект: {name}\tЗадачи: {t} | Финансы: {f:+.2f} | Заметки: {n}"
+        tasks = [e for e in self.state.get("entries", []) if e.get("type") == "task" and not e.get("done", False)]
+        return f"Проект: {name}\tЗадачи: {len(tasks)}"
 
     # --- Централизованная нумерация ---
     def get_numbered_view(self) -> Tuple[List[Dict[str, Any]], Dict[int, str]]:
@@ -62,9 +61,8 @@ class CoreApp:
         self._push_undo()
         e = {
             "id": new_id(),
-            "type": parsed["type"],
+            "type": "task",
             "text": parsed["text"],
-            "amount": parsed.get("amount"),
             "assignee": parsed.get("assignee"),
             "ts": utc_now(),
             "done": False,
@@ -113,7 +111,7 @@ class CoreApp:
         changed = []
         self._push_undo()
         for e in self.state.get("entries", []):
-            if e["id"] in to_mark and e.get("type") in ("note", "task"):
+            if e["id"] in to_mark:
                 e["done"] = True
                 changed.append(e)
         if changed:
@@ -160,6 +158,4 @@ class CoreApp:
         self.save()
         return True
 
-    # --- Финансы ---
-    def get_finances(self) -> List[Dict[str, Any]]:
-        return [e for e in get_all_entries(self.state) if e.get("type") == "finance"]
+# get_finances удалён (финансы удалены)
