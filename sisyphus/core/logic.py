@@ -136,7 +136,7 @@ def format_user_tasks_markdown(tasks_by_project: Dict[str, List[Dict[str, Any]]]
         for t in tasks:
             txt = t.get("text", "")
             lines.append(f"- {txt}")
-        lines.append("")
+            lines.append("")
 
     return "\n".join(lines).rstrip()
 
