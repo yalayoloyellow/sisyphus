@@ -1,0 +1,26 @@
+#!/bin/zsh
+# sisyphus Ghostty wrapper
+# Recreates the runner with the current python3 (to ensure packages are there)
+CONFIG="/Users/yala/.config/ghostty/sisyphus"
+
+PYTHON3=$(command -v python3)
+cat > /Users/yala/sisyphus/design/sisyphus-run << RUNNER
+#!/bin/zsh
+cd /Users/yala/sisyphus
+exec $PYTHON3 -m sisyphus
+RUNNER
+chmod +x /Users/yala/sisyphus/design/sisyphus-run
+
+REAL="/Users/yala/sisyphus/design/sisyphus-run"
+
+open -n -a /Applications/Ghostty.app --args \
+  --config-file="$CONFIG" \
+  --command="$REAL"
+
+sleep 1
+osascript -e '
+tell application "Ghostty" to activate
+tell application "System Events"
+    keystroke "f" using {control down, command down}
+end tell
+' >/dev/null 2>&1 &

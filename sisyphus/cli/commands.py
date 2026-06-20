@@ -13,8 +13,15 @@ import sys
 
 from ..core.app import CoreApp
 from ..core.data import list_projects, create_project, delete_project, DATA_DIR, load_last, rename_project
-from ..core.logic import fmt_entry
+from ..core.logic import fmt_entry, superscript
 from pathlib import Path
+
+try:
+    from rich.text import Text
+    HAS_RICH = True
+except ImportError:
+    HAS_RICH = False
+    Text = None
 
 
 def handle_command(
@@ -39,12 +46,27 @@ def handle_command(
             return "Проект не найден."
         else:
             projs = list_projects()
-            lines = ["Проекты:"]
-            for i, pr in enumerate(projs, 1):
-                cur = " *" if pr["dir"] == app.dir else ""
-                lines.append(f"  {i}. {pr['name']}{cur}")
-            lines.append("Введите номер или имя проекта для переключения (или используй /m имя).")
-            return "\n".join(lines)
+            if HAS_RICH:
+                t = Text()
+                t.append("Проекты:\n", style="cyan")
+                for i, pr in enumerate(projs, 1):
+                    cur = " *" if pr["dir"] == app.dir else ""
+                    num = superscript(i)
+                    t.append(f"  {num} ", style="cyan")
+                    t.append(pr['name'])
+                    if cur:
+                        t.append(cur, style="cyan")
+                    t.append("\n")
+                t.append("Введите номер или имя проекта для переключения (или используй /m имя).", style="cyan")
+                return t
+            else:
+                lines = ["Проекты:"]
+                for i, pr in enumerate(projs, 1):
+                    cur = " *" if pr["dir"] == app.dir else ""
+                    num = superscript(i)
+                    lines.append(f"  {num} {pr['name']}{cur}")
+                lines.append("Введите номер или имя проекта для переключения (или используй /m имя).")
+                return "\n".join(lines)
 
     if cmd == "p-":
         if arg:
@@ -136,8 +158,8 @@ def handle_command(
                 w = __import__('shutil').get_terminal_size().columns
             except:
                 w = 80
-            cw = max(30, min(100, int(w * 2 / 3)))
-            l = (w - cw) // 2
+            cw = max(30, min(200, w - 6))
+            l = 3
             print(" " * l + f"Удалено: {fmt_entry(d)}")
         return None
 
@@ -156,8 +178,8 @@ def handle_command(
                 w = __import__('shutil').get_terminal_size().columns
             except:
                 w = 80
-            cw = max(30, min(100, int(w * 2 / 3)))
-            l = (w - cw) // 2
+            cw = max(30, min(200, w - 6))
+            l = 3
             print(" " * l + f"Отмечено выполненным: {fmt_entry(c)}")
         return None
 

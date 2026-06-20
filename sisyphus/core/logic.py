@@ -24,17 +24,15 @@ def get_all_entries(state: Dict[str, Any]) -> List[Dict[str, Any]]:
 # compute_stats удалён (только для финансов/заметок)
 
 def fmt_entry(e: Dict[str, Any]) -> str:
-    """Простой форматтер для задач."""
+    """Простой форматтер для задач (без лишнего префикса)."""
     text = e.get("text", "")
     assignee = e.get("assignee")
     done = e.get("done", False)
 
-    prefix = "[Задача]"
-    if assignee:
-        prefix += f" {assignee}"
-
     suffix = " ✓" if done else ""
-    return f"{prefix} {text}{suffix}"
+    if assignee:
+        return f"{assignee} {text}{suffix}"
+    return f"{text}{suffix}"
 
 # ==================== ЦЕНТРАЛИЗОВАННАЯ НУМЕРАЦИЯ ====================
 def build_numbered_view(state: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], Dict[int, str]]:
@@ -113,4 +111,32 @@ def get_user_tasks_across_projects(username: str) -> Dict[str, List[Dict[str, An
 
 
 # export_to_xlsx удалена (экспорт удалён вместе с финансами/заметками)
+
+
+def superscript(n: int) -> str:
+    """Unicode superscript for display (¹ ² ³ ...). Purely visual."""
+    supers = str.maketrans("0123456789", "⁰¹²³⁴⁵⁶⁷⁸⁹")
+    return str(n).translate(supers)
+
+
+# ==================== RICH MARKDOWN ДЛЯ КРОСС-ПРОСМОТРА ( /tasks и TG ) ====================
+
+def format_user_tasks_markdown(tasks_by_project: Dict[str, List[Dict[str, Any]]]) -> str:
+    """
+    Один источник для /tasks и TG notify.
+    Используем заголовки (#) — они хорошо рендерятся в Telegram Rich Messages.
+    """
+    if not tasks_by_project:
+        return "У вас нет открытых задач ни в одном проекте."
+
+    lines: List[str] = []
+    for proj_name, tasks in tasks_by_project.items():
+        lines.append(f"# {proj_name}")
+        lines.append("")
+        for t in tasks:
+            txt = t.get("text", "")
+            lines.append(f"- {txt}")
+        lines.append("")
+
+    return "\n".join(lines).rstrip()
 

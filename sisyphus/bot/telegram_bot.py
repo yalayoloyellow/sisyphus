@@ -19,18 +19,12 @@ except ImportError:
     pass
 
 from ..core.data import load_settings, save_settings
-from ..core.logic import get_user_tasks_across_projects
+from ..core.logic import get_user_tasks_across_projects, format_user_tasks_markdown
 
 def _format_my_message(username: str) -> str:
+    """Возвращает Rich Markdown (тот же формат, что в терминале)."""
     tasks_by_project = get_user_tasks_across_projects(username)
-    if not tasks_by_project:
-        return "У вас нет открытых задач ни в одном проекте."
-    lines = []
-    for proj_name, tasks in tasks_by_project.items():
-        lines.append(proj_name)
-        for t in tasks:
-            lines.append(f"• {t.get('text')}")
-    return "\n".join(lines)
+    return format_user_tasks_markdown(tasks_by_project)
 
 
 def _has_open_tasks(username: str) -> bool:
@@ -103,6 +97,45 @@ def send_message_safe(token: str, chat_id: int, text: str) -> bool:
             return False
     return False
 
+
+def send_rich_message_safe(token: str, chat_id: int, md_text: str) -> bool:
+    """
+    Отправка через новый Rich Messages API (Bot API 10.1+).
+    Используем bot.do_api_request — это рекомендуемый способ для новых методов,
+    которые ещё не завернуты в библиотеку python-telegram-bot.
+    """
+    if not TELEGRAM_AVAILABLE or not md_text:
+        return False
+    for attempt in range(3):
+        try:
+            bot = Bot(token)
+            payload = {
+                "chat_id": chat_id,
+                "rich_message": {
+                    "markdown": md_text
+                }
+            }
+            # do_api_request возвращает coroutine в современных версиях
+            coro = bot.do_api_request("sendRichMessage", api_kwargs=payload)
+            try:
+                asyncio.run(coro)
+            except RuntimeError:
+                # внутри уже запущенного loop
+                asyncio.get_event_loop().create_task(coro)
+            return True
+        except (TimedOut, NetworkError):
+            if attempt < 2:
+                time.sleep(4)
+                continue
+            print(f"[BOT] rich send failed to {chat_id} after 3 attempts (network)")
+            return False
+        except Exception as e:
+            # Метод не поддерживается сервером, плохой markdown, нет прав и т.д.
+            print(f"[BOT] rich send failed to {chat_id}: {e}")
+            return False
+    return False
+
+
 def force_notify():
     """Принудительная рассылка (из CLI, вызывается командой /notify)."""
     if not TELEGRAM_AVAILABLE:
@@ -122,11 +155,17 @@ def force_notify():
             chats = [chats]
         for chat_id in chats:
             body = _format_my_message(username)
-            full = f"@{username} {body}"
-            parts = _split_text(full, 3500)
+            # Отделяем упоминание пользователя от rich-контента, чтобы заголовки (#) парсились правильно
+            full = f"@{username}\n\n{body}"
+            # Rich Messages поддерживают до ~32k. Используем больший лимит.
+            parts = _split_text(full, 30000)
             chat_ok = True
             for idx, part in enumerate(parts):
-                ok = send_message_safe(token, chat_id, part)
+                # Сначала пытаемся rich
+                ok = send_rich_message_safe(token, chat_id, part)
+                if not ok:
+                    # Fallback на старый plain
+                    ok = send_message_safe(token, chat_id, part)
                 if not ok:
                     chat_ok = False
                     pending = settings.setdefault("pending_notifications", [])

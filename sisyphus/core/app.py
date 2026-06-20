@@ -15,7 +15,6 @@ from .logic import (
     build_numbered_view,
     get_entry_by_number,
     parse_bare_input,
-    fmt_entry,
     get_all_entries,
 )
 

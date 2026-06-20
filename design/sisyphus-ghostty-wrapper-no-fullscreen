@@ -1,0 +1,8 @@
+#!/bin/zsh
+# Version without the osascript fullscreen force (use if the keystroke is causing issues)
+CONFIG="/Users/yala/.config/ghostty/sisyphus"
+REAL="/Users/yala/.local/bin/sisyphus-run"
+
+open -n -a /Applications/Ghostty.app --args \
+  --config-file="$CONFIG" \
+  --command="$REAL"

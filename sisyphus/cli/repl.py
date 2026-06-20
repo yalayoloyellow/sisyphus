@@ -20,7 +20,7 @@ except ImportError:
 
 from ..core.app import CoreApp
 from ..core.data import DATA_DIR, list_projects, create_project, delete_project, load_last
-from ..core.logic import fmt_entry
+from ..core.logic import fmt_entry, superscript
 
 from .commands import handle_command
 
@@ -34,18 +34,25 @@ except ImportError:
     _console = None
 
 def app_print(text=""):
-    """Simple centered output in middle ~2/3 of screen, left-aligned text.
-    Uses rich for better rendering if available. No colors at all (plain).
+    """Output in the 4:3 centered text area (as set by Ghostty config with large side padding).
+    Use nearly full usable width so the text "window" fills the 4:3 visual box.
+    Small fixed margins to avoid edge. Supports rich Text for colors.
     """
     try:
         width = shutil.get_terminal_size().columns
     except Exception:
         width = 80
-    content_w = max(30, min(100, int(width * 2 / 3)))
-    left = (width - content_w) // 2
+    # For 4:3 visual provided by Ghostty (large padding-x), use almost full width
+    # with small symmetric margins. This prevents further shifting/centering inside the area.
+    content_w = max(30, min(200, width - 6))
+    left = 3
     if _HAS_RICH:
-        indented = Padding(str(text) if not isinstance(text, str) else text, (0, 0, 0, left))
-        _console.print(indented, width=width)
+        if not isinstance(text, str) and hasattr(text, "__rich_console__"):
+            indented = Padding(text, (0, 0, 0, left))
+            _console.print(indented, width=width)
+        else:
+            indented = Padding(str(text), (0, 0, 0, left))
+            _console.print(indented, width=width)
     else:
         if isinstance(text, str):
             for line in (text.splitlines() or [""]):
@@ -70,7 +77,40 @@ HELP_TEXT = """/h                  — эта справка
 """
 
 def print_help():
-    app_print(HELP_TEXT)
+    if _HAS_RICH:
+        from rich.text import Text
+        t = Text()
+        for line in HELP_TEXT.splitlines(keepends=True):
+            stripped = line.strip()
+            if stripped.startswith("/"):
+                # color the command part cyan
+                if "—" in line:
+                    cmd, desc = line.split("—", 1)
+                    t.append(cmd, style="cyan")
+                    t.append("—" + desc)
+                else:
+                    t.append(line, style="cyan")
+            else:
+                t.append(line)
+        app_print(t)
+    else:
+        app_print(HELP_TEXT)
+
+
+def _print_status(name: str, count: int):
+    """Print project status with colors for 4:3 visual.
+    Project name and task count in matching accent color (bright_cyan).
+    """
+    if not _HAS_RICH:
+        app_print(f"Проект: {name}\tЗадачи: {count}")
+        return
+    from rich.text import Text
+    t = Text()
+    t.append("Проект: ", style="white")
+    t.append(name, style="bold bright_cyan")
+    t.append("\tЗадачи: ", style="white")
+    t.append(str(count), style="bold bright_cyan")
+    app_print(t)
 
 def main(argv: list[str] | None = None):
     """Главная точка входа для CLI."""
@@ -100,18 +140,23 @@ def _run_cli_interactive():
             d = create_project("main")
             app.load(d)
 
-    app_print("Sisyphus 1.0.4.3")
+    app_print("Sisyphus 1.1")
     app_print("Copyright (c) 2026 Шамаев Илья Сергеевич (Yala, @yalayoloyellow). Personal use only.")
-    app_print(app.status())
+    try:
+        name = app.state.get("_meta", {}).get("display_name") or (app.dir or "проект")
+        count = len([e for e in app.state.get("entries", []) if e.get("type") == "task" and not e.get("done", False)])
+    except:
+        name, count = "проект", 0
+    _print_status(name, count)
     visible, number_map = app.get_numbered_view()
-    _print_numbered(visible)  # простая печать секциями
+    _print_numbered(visible)
     last_finance_map = None
 
     history_file = DATA_DIR / "history.txt"
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     session = PromptSession(
         history=FileHistory(str(history_file)),
-        # completer removed (minimal clean release 1.0.4.3, no completer.py)
+        # completer removed (minimal clean release 1.1, no completer.py)
     )
 
     last_projects = None
@@ -123,12 +168,15 @@ def _run_cli_interactive():
                 w = shutil.get_terminal_size().columns
             except:
                 w = 80
-            cw = max(30, min(100, int(w * 2 / 3)))
-            l = (w - cw) // 2
-            prompt_str = " " * l + "> "
+            # Match the 4:3 text area margins
+            cw = max(30, min(200, w - 6))
+            l = 3
             if _HAS_RICH:
-                raw = _console.input(prompt_str).strip()
+                from rich.text import Text
+                prompt_text = Text(" " * l + "> ", style="cyan")
+                raw = _console.input(prompt_text).strip()
             else:
+                prompt_str = " " * l + "> "
                 raw = session.prompt(prompt_str).strip()
         except (EOFError, KeyboardInterrupt):
             app_print("\nВыход.")
@@ -136,7 +184,12 @@ def _run_cli_interactive():
 
         if not raw:
             app_print()
-            app_print(app.status())
+            try:
+                name = app.state.get("_meta", {}).get("display_name") or (app.dir or "проект")
+                count = len([e for e in app.state.get("entries", []) if e.get("type") == "task" and not e.get("done", False)])
+            except:
+                name, count = "проект", 0
+            _print_status(name, count)
             visible, number_map = app.get_numbered_view()
             _print_numbered(visible)
             last_projects = None
@@ -151,7 +204,12 @@ def _run_cli_interactive():
                         app.load(last_projects[n-1]["dir"])
                         last_projects = None
                         app_print()
-                        app_print(app.status())
+                        try:
+                            name = app.state.get("_meta", {}).get("display_name") or (app.dir or "проект")
+                            count = len([e for e in app.state.get("entries", []) if e.get("type") == "task" and not e.get("done", False)])
+                        except:
+                            name, count = "проект", 0
+                        _print_status(name, count)
                         visible, number_map = app.get_numbered_view()
                         _print_numbered(visible)
                         continue
@@ -163,13 +221,34 @@ def _run_cli_interactive():
             e = app.add_bare(raw)
             if e:
                 app_print()
-                app_print(f"Добавлено: {fmt_entry(e)}")
-                app_print(app.status())
+                # colored feedback
+                if _HAS_RICH:
+                    from rich.text import Text
+                    fb = Text()
+                    fb.append("Добавлено: ", style="white")
+                    fb.append(fmt_entry(e), style="bright_cyan")
+                    app_print(fb)
+                else:
+                    app_print(f"Добавлено: {fmt_entry(e)}")
+                try:
+                    name = app.state.get("_meta", {}).get("display_name") or (app.dir or "проект")
+                    count = len([e for e in app.state.get("entries", []) if e.get("type") == "task" and not e.get("done", False)])
+                except:
+                    name, count = "проект", 0
+                _print_status(name, count)
                 visible, number_map = app.get_numbered_view()
                 _print_numbered(visible)
             else:
                 app_print()
-                app_print("Не удалось распознать запись (только @username текст).")
+                if _HAS_RICH:
+                    from rich.text import Text
+                    t = Text()
+                    t.append("Не удалось распознать запись (только ")
+                    t.append("@username", style="cyan")
+                    t.append(" текст).")
+                    app_print(t)
+                else:
+                    app_print("Не удалось распознать запись (только @username текст).")
             continue
 
         cmdline = raw[1:].strip()
@@ -197,13 +276,46 @@ def _run_cli_interactive():
             break
         if result:
             app_print()
-            app_print(result)
+            if cmd == "tasks" and _HAS_RICH:
+                from rich.text import Text
+                t = Text()
+                try:
+                    w = shutil.get_terminal_size().columns
+                except:
+                    w = 80
+                content_w = max(30, min(200, w - 6))
+                for line in result.splitlines(keepends=False):
+                    stripped = line.strip()
+                    if stripped.startswith("# "):
+                        proj = stripped[2:]
+                        # centered underlined cyan like rich markdown header
+                        header = Text(proj, style="bold cyan underline")
+                        # pad to center within the content area
+                        pad = (content_w - len(proj)) // 2
+                        if pad > 0:
+                            header = Text(" " * pad) + header + Text(" " * (content_w - len(proj) - pad))
+                        t.append(header)
+                        t.append("\n\n")
+                    elif stripped.startswith("- "):
+                        t.append("• " + stripped[2:] + "\n")
+                    elif stripped:
+                        t.append(line + "\n")
+                    else:
+                        t.append("\n")
+                app_print(t)
+            else:
+                app_print(result)
             if cmd == "m" and not arg:
                 last_projects = list_projects()
 
         if cmd in ("del", "done", "u", "r", "e") or (cmd in ("p", "p-", "m", "rename") and arg):
             app_print()
-            app_print(app.status())
+            try:
+                name = app.state.get("_meta", {}).get("display_name") or (app.dir or "проект")
+                count = len([e for e in app.state.get("entries", []) if e.get("type") == "task" and not e.get("done", False)])
+            except:
+                name, count = "проект", 0
+            _print_status(name, count)
             visible, number_map = app.get_numbered_view()
             _print_numbered(visible)
 
@@ -212,11 +324,31 @@ def _run_cli_interactive():
 
 
 def _print_numbered(visible):
+    """Основной вид списка задач текущего проекта.
+    Номера без точек + superscript (¹ ² ³) cyan.
+    @username and project/task count use matching accent color.
+    Fills the 4:3 area from Ghostty config.
+    """
     if not visible:
         app_print("Нет активных записей.")
         return
+
     for i, e in enumerate(visible, 1):
-        app_print(f"{i}. {fmt_entry(e)}")
+        num = superscript(i)
+        ass = e.get("assignee") or ""
+        txt = e.get("text", "")
+        if _HAS_RICH:
+            from rich.text import Text
+            line = Text()
+            line.append(f"{num} ", style="bold cyan")
+            if ass:
+                line.append(ass, style="bold bright_cyan")
+                line.append(" ", style="bright_cyan")
+            line.append(txt)
+            app_print(line)
+        else:
+            prefix = f"{ass} " if ass else ""
+            app_print(f"{num} {prefix}{txt}")
 
 
 if __name__ == "__main__":

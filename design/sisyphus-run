@@ -1,0 +1,5 @@
+#!/bin/zsh
+# Set a good PATH for login shells launched by Ghostty
+export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+cd /Users/yala/sisyphus
+exec python3 -m sisyphus
